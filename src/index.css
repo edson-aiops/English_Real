@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-default: #1D9E75;
+  --color-brand-dark: #147A5A;
+  --color-brand-light: #2BC59A;
+  --color-brand-bg: #0A0E1A;
+  --color-brand-card: #111827;
+}
+
+body {
+  background-color: var(--color-brand-bg);
+  color: #f8fafc;
+  font-family: system-ui, sans-serif;
+  min-height: 100vh;
+}

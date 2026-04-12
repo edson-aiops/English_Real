@@ -1,0 +1,7 @@
+[
+  { "contraction": "gonna", "full_form": "going to", "example": "I'm gonna study tonight.", "textbook": "I am going to study tonight." },
+  { "contraction": "wanna", "full_form": "want to", "example": "I wanna learn English.", "textbook": "I want to learn English." },
+  { "contraction": "gotta", "full_form": "got to / have to", "example": "I gotta go now.", "textbook": "I have to go now." },
+  { "contraction": "dunno", "full_form": "don't know", "example": "I dunno the answer.", "textbook": "I don't know the answer." },
+  { "contraction": "kinda", "full_form": "kind of", "example": "It's kinda difficult.", "textbook": "It's kind of difficult." }
+]
