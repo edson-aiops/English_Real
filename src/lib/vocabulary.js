@@ -1,11 +1,38 @@
 export async function loadVocabulary() {
   try {
-    const [band6, band65, phrasals, contractions] = await Promise.all([
-      fetch('/vocabulary/band_6.0/words.json').then(r => r.json()),
-      fetch('/vocabulary/band_6.5/words_groq.json').then(r => r.json()),
-      fetch('/vocabulary/real_english/phrasal_verbs.json').then(r => r.json()),
-      fetch('/vocabulary/real_english/contractions.json').then(r => r.json()) // ← NOVO
-    ]);
+    console.log('🔄 Carregando vocabulário...');
+    
+    const urls = [
+      '/vocabulary/band_5.0/words.json',
+      '/vocabulary/band_6.0/words.json',
+      '/vocabulary/band_6.5/words_groq.json',
+      '/vocabulary/real_english/phrasal_verbs.json',
+      '/vocabulary/real_english/contractions.json',
+      '/vocabulary/band_7.0/words.json'
+    ];
+
+    const results = [];
+    
+    for (const url of urls) {
+      try {
+        console.log(`📥 Carregando: ${url}`);
+        const response = await fetch(url);
+        const text = await response.text();
+        console.log(`Texto recebido (${url}):`, text.substring(0, 100));
+        
+        // Remove BOM se existir
+        const cleanText = text.replace(/^\uFEFF/, '');
+        const json = JSON.parse(cleanText);
+        
+        results.push(json);
+        console.log(`✅ Sucesso: ${url} - ${json.length} items`);
+      } catch (err) {
+        console.error(`❌ Falha em ${url}:`, err.message);
+        results.push([]); // Retorna array vazio para não quebrar o resto
+      }
+    }
+
+    const [band5, band6, band65, phrasals, contractions, band7] = results;
 
     const normalizedPhrasals = phrasals.map(item => ({
       ...item,
@@ -23,9 +50,13 @@ export async function loadVocabulary() {
       band: 6.5
     }));
 
-    return [...band6, ...band65, ...normalizedPhrasals, ...normalizedContractions];
+    const total = [...band5, ...band6, ...band65, ...normalizedPhrasals, ...normalizedContractions, ...band7];
+    
+    console.log('📊 TOTAL GERAL:', total.length);
+    return total;
+    
   } catch (error) {
-    console.error("Erro ao carregar vocabulário:", error);
+    console.error('❌ ERRO GERAL:', error);
     return [];
   }
 }
