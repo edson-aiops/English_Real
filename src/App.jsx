@@ -1,22 +1,60 @@
 import { useState, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { loadVocabulary } from './lib/vocabulary.js'
+import { reportDrillCorrect } from './lib/mastery.js'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
+
+function shuffle(array) {
+  const a = [...array]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+function generateOptions(current, allWords) {
+  if (!current || !allWords || allWords.length < 2) return [current?.definition].filter(Boolean)
+  const correct = current.definition
+  const others = allWords.filter(w => w.word !== current.word && w.definition && w.definition !== correct)
+  // Prefer same band, then same topic
+  const sameBand = others.filter(w => w.band === current.band)
+  const sameTopic = others.filter(w => w.topic === current.topic)
+  let pool = sameBand.length >= 3 ? sameBand : sameTopic.length >= 3 ? sameTopic : others
+  if (pool.length < 3) pool = others
+  const distractors = shuffle(pool).slice(0, 3).map(w => w.definition)
+  const uniqueDistractors = [...new Set(distractors)].filter(d => d !== correct)
+  // Fill up to 3 if we lost some to dedup
+  let finalDistractors = uniqueDistractors
+  if (finalDistractors.length < 3) {
+    const fallback = shuffle(others.filter(w => w.definition !== correct && !finalDistractors.includes(w.definition)))
+    while (finalDistractors.length < 3 && fallback.length > 0) {
+      const d = fallback.pop().definition
+      if (!finalDistractors.includes(d)) finalDistractors.push(d)
+    }
+  }
+  return shuffle([correct, ...finalDistractors])
+}
 
 function App() {
   const [vocabulary, setVocabulary] = useState([])
   const [currentWord, setCurrentWord] = useState(null)
-  const [revealed, setRevealed] = useState(false)
   const [loading, setLoading] = useState(true)
   const [showStats, setShowStats] = useState(false)
-  
+
+  // Quiz state
+  const [quizOptions, setQuizOptions] = useState([])
+  const [firstAttemptWrong, setFirstAttemptWrong] = useState(false)
+  const [selectedOption, setSelectedOption] = useState(null)
+  const [validHit, setValidHit] = useState(false)
+  const [showResult, setShowResult] = useState(false)
+
   // Carregar progresso do localStorage
   const [progress, setProgress] = useState(() => {
     const saved = localStorage.getItem('er_progress')
     return saved ? JSON.parse(saved) : {}
   })
-  
-  // Carregar data da última sessão para calcular streak
+
   const [lastSession, setLastSession] = useState(() => {
     return localStorage.getItem('er_last_session') || null
   })
@@ -38,8 +76,6 @@ function App() {
   useEffect(() => {
     if (Object.keys(progress).length) {
       localStorage.setItem('er_progress', JSON.stringify(progress))
-      
-      // Atualizar streak
       const today = new Date().toDateString()
       const last = localStorage.getItem('er_last_session')
       if (last !== today) {
@@ -52,7 +88,6 @@ function App() {
     }
   }, [progress])
 
-  // Calcular streak atual
   const getStreak = () => {
     const saved = localStorage.getItem('er_streak')
     return saved ? parseInt(saved) : 0
@@ -66,26 +101,59 @@ function App() {
     window.speechSynthesis.speak(utterance)
   }
 
-  // Lógica SRS
-  const handleAnswer = (correct) => {
+  // Gerar opções quando currentWord muda
+  useEffect(() => {
+    if (currentWord) {
+      setQuizOptions(generateOptions(currentWord, vocabulary))
+      setFirstAttemptWrong(false)
+      setSelectedOption(null)
+      setValidHit(false)
+      setShowResult(false)
+    }
+  }, [currentWord, vocabulary])
+
+  // Lógica SRS — só chamada internamente, não exposta como antes
+  const updateSRS = (correct) => {
     if (!currentWord) return
     setProgress(prev => {
       const curr = prev[currentWord.word] || { box: 1, nextReview: Date.now(), correct: 0, wrong: 0 }
-      const newBox = correct ? Math.min(curr.box + 1, 5) : 1
+      const newBox = correct ? Math.min(curr.box + 1, 5) : Math.max(curr.box - 1, 1)
       return {
         ...prev,
-        [currentWord.word]: { 
-          ...curr, 
-          box: newBox, 
+        [currentWord.word]: {
+          ...curr,
+          box: newBox,
           nextReview: Date.now() + newBox * 86400000,
           correct: curr.correct + (correct ? 1 : 0),
           wrong: curr.wrong + (correct ? 0 : 1)
         }
       }
     })
+  }
+
+  const goNext = () => {
     const nextIndex = Math.floor(Math.random() * vocabulary.length)
     setCurrentWord(vocabulary[nextIndex])
-    setRevealed(false)
+  }
+
+  // Quiz: usuário escolhe uma definição
+  const handleSelect = (chosenDefinition) => {
+    if (!currentWord || showResult) return
+    const isCorrect = chosenDefinition === currentWord.definition
+    setSelectedOption(chosenDefinition)
+    setShowResult(true)
+
+    if (isCorrect && !firstAttemptWrong) {
+      // Acerto VÁLIDO de primeira
+      setValidHit(true)
+      updateSRS(true)
+      reportDrillCorrect(currentWord.word)
+    } else if (!isCorrect && !firstAttemptWrong) {
+      // Errou na primeira tentativa — marca como invalidado para esta rodada
+      setFirstAttemptWrong(true)
+      updateSRS(false)
+    }
+    // Se já tinha errado antes e agora acertou: não conta como válido, não chama updateSRS
   }
 
   // 📊 Estatísticas Calculadas
@@ -95,20 +163,17 @@ function App() {
     const mastered = entries.filter(([, p]) => p.box >= 4).length
     const learning = entries.filter(([, p]) => p.box >= 2 && p.box < 4).length
     const newWords = entries.filter(([, p]) => p.box === 1).length
-    
-    // Taxa de acerto
+
     const totalAnswers = entries.reduce((acc, [, p]) => acc + (p.correct || 0) + (p.wrong || 0), 0)
     const totalCorrect = entries.reduce((acc, [, p]) => acc + (p.correct || 0), 0)
     const accuracy = totalAnswers > 0 ? Math.round((totalCorrect / totalAnswers) * 100) : 0
-    
-    // Distribuição por Box (para gráfico)
+
     const boxData = [
       { name: 'Novas', value: newWords, color: '#64748b' },
       { name: 'Aprendendo', value: learning, color: '#3b82f6' },
       { name: 'Dominadas', value: mastered, color: '#1D9E75' }
     ].filter(d => d.value > 0)
-    
-    // Distribuição por Band
+
     const bandStats = vocabulary.reduce((acc, word) => {
       const p = progress[word.word]
       if (p) {
@@ -116,7 +181,7 @@ function App() {
       }
       return acc
     }, {})
-    
+
     return { total, mastered, learning, newWords, accuracy, boxData, bandStats, streak: getStreak() }
   }, [progress, vocabulary])
 
@@ -128,9 +193,9 @@ function App() {
       <header className="flex justify-between items-center mb-6 pt-4">
         <div>
           <h1 className="text-2xl font-bold text-[#1D9E75]">Word Drill IELTS</h1>
-          <p className="text-sm text-slate-400">v0.6 • Stats + PWA</p>
+          <p className="text-sm text-slate-400">v0.7 • Quiz Validado</p>
         </div>
-        <button 
+        <button
           onClick={() => setShowStats(!showStats)}
           className="w-10 h-10 rounded-full bg-[#111827] flex items-center justify-center border border-slate-700 hover:border-[#1D9E75] transition"
         >
@@ -141,7 +206,7 @@ function App() {
       <AnimatePresence mode="wait">
         {showStats ? (
           /* 📊 DASHBOARD DE ESTATÍSTICAS */
-          <motion.div 
+          <motion.div
             key="stats"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -184,7 +249,7 @@ function App() {
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip 
+                    <Tooltip
                       contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px' }}
                       itemStyle={{ color: '#fff' }}
                     />
@@ -210,7 +275,7 @@ function App() {
                     <span className="text-sm text-slate-300">Band {band}</span>
                     <div className="flex items-center gap-2">
                       <div className="w-24 h-2 bg-slate-700 rounded-full overflow-hidden">
-                        <div 
+                        <div
                           className="h-full bg-[#1D9E75] rounded-full transition-all"
                           style={{ width: `${Math.min((count / 60) * 100, 100)}%` }}
                         ></div>
@@ -223,24 +288,24 @@ function App() {
             </div>
 
             {/* Botão Voltar */}
-            <button 
+            <button
               onClick={() => setShowStats(false)}
               className="w-full py-4 bg-gradient-to-r from-[#1D9E75] to-emerald-600 rounded-xl font-bold text-white shadow-lg"
             >
               🚀 Voltar para o Drill
             </button>
-            
+
             {/* PWA Install Hint */}
             <p className="text-center text-xs text-slate-500">
               💡 No celular: use "Adicionar à tela inicial" para instalar o app!
             </p>
           </motion.div>
         ) : (
-          /* 🎯 MODO DRILL NORMAL */
+          /* 🎯 MODO DRILL — QUIZ VALIDADO */
           <motion.div key="drill" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             {currentWord ? (
-              <motion.div 
-                key={currentWord.word + revealed}
+              <motion.div
+                key={currentWord.word}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
@@ -248,7 +313,7 @@ function App() {
               >
                 <div className="bg-[#111827] border border-slate-700 rounded-2xl p-6 shadow-xl relative overflow-hidden">
                   <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#1D9E75] to-emerald-400"></div>
-                  
+
                   <div className="flex justify-between items-start mb-6">
                     <span className="bg-[#1D9E75] text-white text-xs font-bold px-3 py-1 rounded-full shadow">
                       Band {currentWord.band}
@@ -259,7 +324,7 @@ function App() {
                   <div className="text-center py-4">
                     <div className="flex items-center justify-center gap-3 mb-2">
                       <h2 className="text-4xl font-bold text-white">{currentWord.word}</h2>
-                      <button 
+                      <button
                         onClick={() => speak(currentWord.word)}
                         className="p-2 rounded-full hover:bg-slate-700 transition text-slate-400 hover:text-[#1D9E75]"
                         title="Ouvir Pronúncia"
@@ -271,7 +336,7 @@ function App() {
                     {progress[currentWord.word] && (
                       <div className="flex justify-center gap-1 mt-2">
                         {[1,2,3,4,5].map(box => (
-                          <div 
+                          <div
                             key={box}
                             className={`w-2 h-2 rounded-full transition-all ${
                               box <= progress[currentWord.word].box ? 'bg-[#1D9E75]' : 'bg-slate-700'
@@ -282,27 +347,75 @@ function App() {
                     )}
                   </div>
 
-                  {revealed ? (
-                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} className="space-y-4">
-                      <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50">
-                        <p className="text-slate-300 text-lg">{currentWord.definition}</p>
-                        {currentWord.example && (
-                          <p className="text-slate-400 italic mt-2 border-l-2 border-[#1D9E75] pl-3">
-                            "{currentWord.example}"
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex gap-3 mt-6">
-                        <button onClick={() => handleAnswer(false)} className="flex-1 py-4 bg-red-600 hover:bg-red-500 rounded-xl font-bold text-white transition transform active:scale-95 shadow-lg">❌ Errei</button>
-                        <button onClick={() => handleAnswer(true)} className="flex-1 py-4 bg-[#1D9E75] hover:bg-emerald-500 rounded-xl font-bold text-white transition transform active:scale-95 shadow-lg">✅ Acertei</button>
-                      </div>
+                  {/* Opções do quiz */}
+                  <div className="space-y-3 mt-4">
+                    {quizOptions.map((opt, idx) => {
+                      let btnClass = 'w-full py-3 px-4 rounded-xl font-medium text-left transition transform active:scale-95 border '
+                      if (!showResult) {
+                        btnClass += 'bg-slate-800 border-slate-600 hover:bg-slate-700 hover:border-slate-500 text-slate-200'
+                      } else if (opt === currentWord.definition) {
+                        btnClass += 'bg-[#1D9E75] border-[#1D9E75] text-white'
+                      } else if (opt === selectedOption) {
+                        btnClass += 'bg-red-600 border-red-600 text-white'
+                      } else {
+                        btnClass += 'bg-slate-800 border-slate-600 text-slate-500 opacity-60'
+                      }
+                      return (
+                        <motion.button
+                          key={idx}
+                          whileHover={!showResult ? { scale: 1.01 } : {}}
+                          whileTap={!showResult ? { scale: 0.98 } : {}}
+                          onClick={() => handleSelect(opt)}
+                          className={btnClass}
+                          disabled={showResult}
+                        >
+                          <span className="mr-2 text-sm font-bold opacity-50">{String.fromCharCode(65 + idx)}.</span>
+                          {opt}
+                        </motion.button>
+                      )
+                    })}
+                  </div>
+
+                  {/* Feedback + Próxima */}
+                  {showResult && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mt-4 space-y-3"
+                    >
+                      {validHit ? (
+                        <div className="bg-emerald-900/40 border border-emerald-600/50 p-4 rounded-xl text-center">
+                          <p className="text-emerald-400 font-bold text-lg">✅ Acerto válido!</p>
+                          <p className="text-emerald-300 text-sm mt-1">Contou no progresso.</p>
+                        </div>
+                      ) : firstAttemptWrong && selectedOption === currentWord.definition ? (
+                        <div className="bg-yellow-900/40 border border-yellow-600/50 p-4 rounded-xl text-center">
+                          <p className="text-yellow-400 font-bold text-lg">⚠️ Acertou, mas não conta</p>
+                          <p className="text-yellow-300 text-sm mt-1">Você errou na primeira tentativa. Continue praticando!</p>
+                        </div>
+                      ) : firstAttemptWrong ? (
+                        <div className="bg-red-900/40 border border-red-600/50 p-4 rounded-xl text-center">
+                          <p className="text-red-400 font-bold text-lg">❌ Errou</p>
+                          <p className="text-red-300 text-sm mt-1">Resposta correta destacada em verde.</p>
+                        </div>
+                      ) : null}
+
+                      {currentWord.example && (
+                        <p className="text-slate-400 italic border-l-2 border-[#1D9E75] pl-3">
+                          "{currentWord.example}"
+                        </p>
+                      )}
+
+                      <button
+                        onClick={goNext}
+                        className="w-full py-4 bg-gradient-to-r from-[#1D9E75] to-emerald-600 rounded-xl font-bold text-white shadow-lg transition transform active:scale-95"
+                      >
+                        🚀 Próxima palavra
+                      </button>
                     </motion.div>
-                  ) : (
-                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => setRevealed(true)} className="w-full py-4 bg-slate-700 hover:bg-slate-600 rounded-xl font-semibold text-lg transition shadow-lg mt-4">
-                      👁️ Ver Resposta
-                    </motion.button>
                   )}
                 </div>
+
                 <button onClick={() => setCurrentWord(null)} className="mt-4 w-full py-3 text-slate-400 hover:text-white transition">← Voltar</button>
               </motion.div>
             ) : (
@@ -326,7 +439,7 @@ function App() {
                 <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => setCurrentWord(vocabulary[0])} className="w-full py-5 bg-gradient-to-r from-[#1D9E75] to-emerald-600 rounded-xl font-bold text-xl text-white shadow-lg shadow-emerald-900/50">
                   🚀 Iniciar ({vocabulary.length} items)
                 </motion.button>
-                
+
                 <div className="text-center text-xs text-slate-500">
                   <p>Dica: Clique em 📊 no topo para ver estatísticas detalhadas</p>
                 </div>
@@ -337,7 +450,7 @@ function App() {
       </AnimatePresence>
 
       <footer className="text-center text-xs text-slate-600 mt-8 pb-4">
-        <p>English_Real v0.6 • PWA + Stats + Audio</p>
+        <p>English_Real v0.7 • Quiz Validado + PWA</p>
       </footer>
     </div>
   )
