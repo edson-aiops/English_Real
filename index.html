@@ -3,12 +3,22 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1D9E75" />
+    <link rel="manifest" href="/English_Real/manifest.json" />
     <title>Word Drill IELTS</title>
-    <script type="module" crossorigin src="/English_Real/assets/index-DKw5qxUH.js"></script>
-    <link rel="stylesheet" crossorigin href="/English_Real/assets/index-DFnlukFQ.css">
+    <script type="module" crossorigin src="/English_Real/assets/index-DMwGhfYf.js"></script>
+    <link rel="stylesheet" crossorigin href="/English_Real/assets/index-BgNkugU4.css">
   </head>
   <body>
     <div id="root"></div>
-    <!-- MUDANÇA CRÍTICA AQUI: main.jsx em vez de main.js -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/English_Real/sw.js');
+      }
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        window.deferredPrompt = e;
+      });
+    </script>
   </body>
 </html>
