@@ -41,13 +41,12 @@ function App() {
   const [currentWord, setCurrentWord] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showStats, setShowStats] = useState(false)
-  const [installPrompt, setInstallPrompt] = useState(null)
+  const [installReady, setInstallReady] = useState(false)
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent)
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone
 
   useEffect(() => {
-    const handler = (e) => {
-      e.preventDefault()
-      setInstallPrompt(e)
-    }
+    const handler = () => setInstallReady(true)
     window.addEventListener('beforeinstallprompt', handler)
     return () => window.removeEventListener('beforeinstallprompt', handler)
   }, [])
@@ -206,17 +205,25 @@ function App() {
           <p className="text-sm text-slate-400">v0.7 • Quiz Validado</p>
         </div>
         <div className="flex gap-2">
-          {installPrompt && (
+          {(installReady || (isIOS && !isStandalone)) && (
             <button
+              id="install-btn"
               onClick={async () => {
-                installPrompt.prompt()
-                const { outcome } = await installPrompt.userChoice
-                if (outcome === 'accepted') setInstallPrompt(null)
+                if (window.deferredInstallPrompt) {
+                  window.deferredInstallPrompt.prompt()
+                  await window.deferredInstallPrompt.userChoice
+                  window.deferredInstallPrompt = null
+                  setInstallReady(false)
+                } else if (isIOS) {
+                  alert('No iPhone: toque em Compartilhar → "Adicionar à Tela de Início"')
+                } else {
+                  alert('App já instalado ou instalação indisponível neste navegador.')
+                }
               }}
               className="px-3 h-10 rounded-full bg-[#1D9E75] text-sm font-semibold flex items-center justify-center border border-[#1D9E75] hover:bg-[#168a63] transition"
               title="Instalar app"
             >
-              ⬇️ Instalar
+              {isIOS && !window.deferredInstallPrompt ? '📲 Como instalar' : '📲 Instalar app'}
             </button>
           )}
           <button

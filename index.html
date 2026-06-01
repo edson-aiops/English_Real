@@ -13,9 +13,19 @@
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/English_Real/sw.js');
       }
+      let deferredInstallPrompt = null;
       window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
-        window.deferredPrompt = e;
+        deferredInstallPrompt = e;
+        window.deferredInstallPrompt = e;
+        const btn = document.getElementById('install-btn');
+        if (btn) btn.hidden = false;
+      });
+      window.addEventListener('appinstalled', () => {
+        deferredInstallPrompt = null;
+        window.deferredInstallPrompt = null;
+        const btn = document.getElementById('install-btn');
+        if (btn) btn.hidden = true;
       });
     </script>
     <script type="module" src="/src/main.jsx"></script>
