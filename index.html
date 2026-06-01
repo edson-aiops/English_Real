@@ -6,8 +6,8 @@
     <meta name="theme-color" content="#1D9E75" />
     <link rel="manifest" href="/English_Real/manifest.json" />
     <title>Word Drill IELTS</title>
-    <script type="module" crossorigin src="/English_Real/assets/index-DMwGhfYf.js"></script>
-    <link rel="stylesheet" crossorigin href="/English_Real/assets/index-BgNkugU4.css">
+    <script type="module" crossorigin src="/English_Real/assets/index-nasIO5sv.js"></script>
+    <link rel="stylesheet" crossorigin href="/English_Real/assets/index-TQzvN23K.css">
   </head>
   <body>
     <div id="root"></div>
@@ -15,9 +15,19 @@
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/English_Real/sw.js');
       }
+      let deferredInstallPrompt = null;
       window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
-        window.deferredPrompt = e;
+        deferredInstallPrompt = e;
+        window.deferredInstallPrompt = e;
+        const btn = document.getElementById('install-btn');
+        if (btn) btn.hidden = false;
+      });
+      window.addEventListener('appinstalled', () => {
+        deferredInstallPrompt = null;
+        window.deferredInstallPrompt = null;
+        const btn = document.getElementById('install-btn');
+        if (btn) btn.hidden = true;
       });
     </script>
   </body>
