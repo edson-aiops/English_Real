@@ -41,6 +41,16 @@ function App() {
   const [currentWord, setCurrentWord] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showStats, setShowStats] = useState(false)
+  const [installPrompt, setInstallPrompt] = useState(null)
+
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault()
+      setInstallPrompt(e)
+    }
+    window.addEventListener('beforeinstallprompt', handler)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
 
   // Quiz state
   const [quizOptions, setQuizOptions] = useState([])
@@ -195,12 +205,27 @@ function App() {
           <h1 className="text-2xl font-bold text-[#1D9E75]">Word Drill IELTS</h1>
           <p className="text-sm text-slate-400">v0.7 • Quiz Validado</p>
         </div>
-        <button
-          onClick={() => setShowStats(!showStats)}
-          className="w-10 h-10 rounded-full bg-[#111827] flex items-center justify-center border border-slate-700 hover:border-[#1D9E75] transition"
-        >
-          {showStats ? '🎯' : '📊'}
-        </button>
+        <div className="flex gap-2">
+          {installPrompt && (
+            <button
+              onClick={async () => {
+                installPrompt.prompt()
+                const { outcome } = await installPrompt.userChoice
+                if (outcome === 'accepted') setInstallPrompt(null)
+              }}
+              className="px-3 h-10 rounded-full bg-[#1D9E75] text-sm font-semibold flex items-center justify-center border border-[#1D9E75] hover:bg-[#168a63] transition"
+              title="Instalar app"
+            >
+              ⬇️ Instalar
+            </button>
+          )}
+          <button
+            onClick={() => setShowStats(!showStats)}
+            className="w-10 h-10 rounded-full bg-[#111827] flex items-center justify-center border border-slate-700 hover:border-[#1D9E75] transition"
+          >
+            {showStats ? '🎯' : '📊'}
+          </button>
+        </div>
       </header>
 
       <AnimatePresence mode="wait">
