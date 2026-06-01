@@ -6,15 +6,12 @@
     <meta name="theme-color" content="#1D9E75" />
     <link rel="manifest" href="/English_Real/manifest.json" />
     <title>Word Drill IELTS</title>
-    <script type="module" crossorigin src="/English_Real/assets/index-nasIO5sv.js"></script>
+    <script type="module" crossorigin src="/English_Real/assets/index-BAkIX4LF.js"></script>
     <link rel="stylesheet" crossorigin href="/English_Real/assets/index-TQzvN23K.css">
   </head>
   <body>
     <div id="root"></div>
     <script>
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/English_Real/sw.js');
-      }
       let deferredInstallPrompt = null;
       window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
@@ -29,6 +26,26 @@
         const btn = document.getElementById('install-btn');
         if (btn) btn.hidden = true;
       });
+
+      /* Service Worker + Update detection */
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/English_Real/sw.js').then((reg) => {
+          reg.addEventListener('updatefound', () => {
+            const newWorker = reg.installing;
+            if (!newWorker) return;
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                const updateBar = document.getElementById('update-bar');
+                if (updateBar) updateBar.style.display = 'flex';
+              }
+            });
+          });
+        });
+        let reloading = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!reloading) { reloading = true; window.location.reload(); }
+        });
+      }
     </script>
   </body>
 </html>
