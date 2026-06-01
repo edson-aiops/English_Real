@@ -2,13 +2,14 @@ export async function loadVocabulary() {
   try {
     console.log('🔄 Carregando vocabulário...');
     
+    const base = import.meta.env.BASE_URL;
     const urls = [
-      '/vocabulary/band_5.0/words.json',
-      '/vocabulary/band_6.0/words.json',
-      '/vocabulary/band_6.5/words_groq.json',
-      '/vocabulary/real_english/phrasal_verbs.json',
-      '/vocabulary/real_english/contractions.json',
-      '/vocabulary/band_7.0/words.json'
+      `${base}vocabulary/band_5.0/words.json`,
+      `${base}vocabulary/band_6.0/words.json`,
+      `${base}vocabulary/band_6.5/words_groq.json`,
+      `${base}vocabulary/real_english/phrasal_verbs.json`,
+      `${base}vocabulary/real_english/contractions.json`,
+      `${base}vocabulary/band_7.0/words.json`
     ];
 
     const results = [];
