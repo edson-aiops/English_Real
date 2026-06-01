@@ -41,6 +41,7 @@ function App() {
   const [currentWord, setCurrentWord] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showStats, setShowStats] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [installReady, setInstallReady] = useState(false)
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent)
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone
@@ -210,27 +211,13 @@ function App() {
           <p className="text-sm text-slate-400">v0.7 • Quiz Validado</p>
         </div>
         <div className="flex gap-2">
-          {(installReady || (isIOS && !isStandalone)) && (
-            <button
-              id="install-btn"
-              onClick={async () => {
-                if (window.deferredInstallPrompt) {
-                  window.deferredInstallPrompt.prompt()
-                  await window.deferredInstallPrompt.userChoice
-                  window.deferredInstallPrompt = null
-                  setInstallReady(false)
-                } else if (isIOS) {
-                  alert('No iPhone: toque em Compartilhar → "Adicionar à Tela de Início"')
-                } else {
-                  alert('App já instalado ou instalação indisponível neste navegador.')
-                }
-              }}
-              className="px-3 h-10 rounded-full bg-[#1D9E75] text-sm font-semibold flex items-center justify-center border border-[#1D9E75] hover:bg-[#168a63] transition"
-              title="Instalar app"
-            >
-              {isIOS && !window.deferredInstallPrompt ? '📲 Como instalar' : '📲 Instalar app'}
-            </button>
-          )}
+          <button
+            onClick={() => setShowSettings(true)}
+            className="w-10 h-10 rounded-full bg-[#111827] flex items-center justify-center border border-slate-700 hover:border-[#1D9E75] transition"
+            title="Configurações"
+          >
+            ⚙️
+          </button>
           <button
             onClick={() => setShowStats(!showStats)}
             className="w-10 h-10 rounded-full bg-[#111827] flex items-center justify-center border border-slate-700 hover:border-[#1D9E75] transition"
@@ -241,7 +228,59 @@ function App() {
       </header>
 
       <AnimatePresence mode="wait">
-        {showStats ? (
+        {showSettings ? (
+          /* ⚙️ CONFIGURAÇÕES */
+          <motion.div
+            key="settings"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="space-y-4"
+          >
+            <div className="bg-[#111827] p-5 rounded-xl border border-slate-700 space-y-4">
+              <h2 className="text-lg font-bold text-white">⚙️ Configurações</h2>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-300 mb-1">Chave da API Groq</label>
+                <a href="https://console.groq.com/keys" target="_blank" rel="noopener" className="text-[#1D9E75] text-sm hover:underline">Como obter chave Groq ↗</a>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {(installReady || (isIOS && !isStandalone)) && (
+                  <button
+                    id="install-btn"
+                    onClick={async () => {
+                      if (window.deferredInstallPrompt) {
+                        window.deferredInstallPrompt.prompt()
+                        await window.deferredInstallPrompt.userChoice
+                        window.deferredInstallPrompt = null
+                        setInstallReady(false)
+                      } else if (isIOS) {
+                        alert('No iPhone: toque em Compartilhar → "Adicionar à Tela de Início"')
+                      } else {
+                        alert('App já instalado ou instalação indisponível neste navegador.')
+                      }
+                    }}
+                    className="px-3 h-10 rounded-full bg-[#1D9E75] text-sm font-semibold flex items-center justify-center border border-[#1D9E75] hover:bg-[#168a63] transition"
+                  >
+                    {isIOS && !window.deferredInstallPrompt ? '📲 Como instalar' : '📲 Instalar app'}
+                  </button>
+                )}
+                <button
+                  onClick={() => { if ('serviceWorker' in navigator) navigator.serviceWorker.ready.then(r => r.waiting?.postMessage({type:'SKIP_WAITING'})) }}
+                  className="px-3 h-10 rounded-full bg-[#f59e0b] text-sm font-semibold flex items-center justify-center border border-[#f59e0b] hover:bg-[#d97706] transition text-white"
+                >
+                  🔄 Atualizar
+                </button>
+              </div>
+
+              <div className="flex justify-between items-center pt-2 border-t border-slate-700">
+                <span className="text-muted text-sm text-slate-400">v0.8 • PWA</span>
+                <button onClick={() => setShowSettings(false)} className="px-4 h-9 rounded-full bg-[#374151] text-sm hover:bg-[#4b5563] transition">Voltar</button>
+              </div>
+            </div>
+          </motion.div>
+        ) : showStats ? (
           /* 📊 DASHBOARD DE ESTATÍSTICAS */
           <motion.div
             key="stats"
