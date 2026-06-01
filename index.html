@@ -10,9 +10,6 @@
   <body>
     <div id="root"></div>
     <script>
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/English_Real/sw.js');
-      }
       let deferredInstallPrompt = null;
       window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
@@ -27,6 +24,26 @@
         const btn = document.getElementById('install-btn');
         if (btn) btn.hidden = true;
       });
+
+      /* Service Worker + Update detection */
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/English_Real/sw.js').then((reg) => {
+          reg.addEventListener('updatefound', () => {
+            const newWorker = reg.installing;
+            if (!newWorker) return;
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                const updateBar = document.getElementById('update-bar');
+                if (updateBar) updateBar.style.display = 'flex';
+              }
+            });
+          });
+        });
+        let reloading = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!reloading) { reloading = true; window.location.reload(); }
+        });
+      }
     </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>

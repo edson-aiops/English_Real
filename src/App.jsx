@@ -198,6 +198,11 @@ function App() {
 
   return (
     <div className="max-w-md mx-auto p-4 min-h-screen text-slate-100 select-none">
+      {/* Update bar */}
+      <div id="update-bar" style={{display:'none', alignItems:'center', justifyContent:'space-between', background:'#fef3c7', color:'#92400e', padding:'8px 12px', borderRadius:'8px', marginBottom:'12px', fontSize:'14px'}}>
+        <span>🔄 Nova versão disponível</span>
+        <button onClick={() => { navigator.serviceWorker.ready.then(r => r.waiting?.postMessage({type:'SKIP_WAITING'})); }} style={{background:'#f59e0b', color:'white', border:'none', borderRadius:'6px', padding:'4px 10px', cursor:'pointer', fontSize:'13px'}}>Atualizar agora</button>
+      </div>
       {/* Header com Toggle Stats */}
       <header className="flex justify-between items-center mb-6 pt-4">
         <div>

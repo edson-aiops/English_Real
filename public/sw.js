@@ -10,7 +10,6 @@ self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
   );
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {
@@ -24,11 +23,17 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const { request } = e;
-  // Bypass API calls and external resources
   if (request.url.includes('hf.space') || request.url.includes('api.groq.com')) {
     return;
   }
   e.respondWith(
     caches.match(request).then((cached) => cached || fetch(request))
   );
+});
+
+/* Update flow: wait for skipWaiting message from client */
+self.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
